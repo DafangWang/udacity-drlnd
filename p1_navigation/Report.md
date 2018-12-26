@@ -2,6 +2,7 @@
 
 [learning_scores]: learning_scores.jpg "Learning Scores"
 [learning_scores_list]: learning_scores_list.jpg "Learning Scores List"
+[dqn_architecture]: dqn_architecture.jpg "DQN Architecture"
 
 
 # Project: Navigtation
@@ -33,6 +34,9 @@ This Deep Q-Network learning algorithm uses those steps:
 3. While training, fix the target weights for *C* learning steps to make the algoritm more stable and update set of weights using gradient descent.
 
 
+![DQN architecture][dqn_architecture]
+
+
 ### Rewards
 
 As shown below agent learned the environment fairly quickly. In around 500 episodes it reached average 13+ reward. 
@@ -40,6 +44,8 @@ As shown below agent learned the environment fairly quickly. In around 500 episo
 ![Learning Scores List][learning_scores_list]
 
 ![Learning Scores Chart][learning_scores]
+
+The weights of the networks are stored in `checkpoint.pth` file using `torch.save(agent.local.state_dict(), 'checkpoint.pth')`
 
 ### Ideas for Future Work
 
