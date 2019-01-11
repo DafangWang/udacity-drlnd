@@ -41,32 +41,21 @@ class ReplayBuffer:
 
         self._next_index()
 
-    def _get_sample_indices(self, n, exact_batch_size=False):
-        samples_to_draw = n
+    def _get_sample_indices(self, samples_to_draw):
         buffer_size = self.size()
 
         if samples_to_draw > buffer_size:
-            message = "Not enough samples to draw from the ReplayBuffer [size: {}, to_draw: {}]".format(buffer_size,
-                                                                                                        samples_to_draw)
+            diagnostic = "[size: {}, to_draw: {}]".format(buffer_size, samples_to_draw)
+            message = "Not enough samples to draw from the ReplayBuffer " + diagnostic
             raise Exception(message)
 
         if samples_to_draw == buffer_size:
             return np.random.permutation(buffer_size)
 
-        if not exact_batch_size:
-            return np.random.randint(0, buffer_size, samples_to_draw)
+        return np.unique(np.random.randint(0, buffer_size, samples_to_draw))
 
-        indices = np.array([])
-        while samples_to_draw > 0:
-            draw = np.random.random_integers(0, buffer_size, samples_to_draw)
-            indices = np.unique(indices, draw)
-
-            samples_to_draw = self.batch_size - len(indices)
-
-        return indices
-
-    def sample(self, n, exact_batch_size=False):
-        indices = self._get_sample_indices(n, exact_batch_size)
+    def sample(self, samples_to_draw):
+        indices = self._get_sample_indices(samples_to_draw)
 
         states = self.states[indices]
         actions = self.actions[indices]

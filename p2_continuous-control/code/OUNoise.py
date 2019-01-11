@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class OUNoise():
+class OUNoise:
     """ Ornstein-Uhlenbeck noise """
 
     def __init__(self, size, mu=0.0, theta=0.15, sigma=0.2):
