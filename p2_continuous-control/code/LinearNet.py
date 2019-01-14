@@ -1,67 +1,8 @@
-import torch
-
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
-
-# def _initialize_weights(modules):
-#     for module in modules:
-#         if isinstance(module, nn.Linear):
-#             module.weight = nn.init.xavier_uniform_(module.weight)
-#
-#
-# class LinearNet(nn.Module):
-#     def __init__(self, input_size, hidden_layers, output_size):
-#         super(LinearNet, self).__init__()
-#
-#         seq = self._create_layers(input_size, hidden_layers, output_size)
-#         self.model = nn.Sequential(*seq)
-#         _initialize_weights(self.modules())
-#
-#     def _create_layers(self, input_size, hidden_layers, output_size):
-#         seq = [nn.Linear(input_size, hidden_layers[0])]
-#         for i in range(1, len(hidden_layers)):
-#             seq = seq + [nn.ReLU()]
-#             seq = seq + [nn.Linear(hidden_layers[i - 1], hidden_layers[i])]
-#
-#         seq = seq + [nn.ReLU()]
-#         seq = seq + [nn.Linear(hidden_layers[-1], output_size)]
-#         return seq
-#
-#     def forward(self, state):
-#         return self.model.forward(state)
-#
-#
-# class Actor(LinearNet):
-#     def __init__(self, input_size, hidden_layers, output_size):
-#         super(Actor, self).__init__(input_size, hidden_layers, output_size)
-#
-#     def _create_layers(self, input_size, hidden_layers, output_size):
-#         seq = super(Actor, self)._create_layers(input_size, hidden_layers, output_size)
-#         seq = seq + [nn.Tanh()]
-#         return seq
-#
-#
-# class Critic(nn.Module):
-#     def __init__(self, state_size, action_size, hidden_layers):
-#         super(Critic, self).__init__()
-#         self.state_size = state_size
-#         self.action_size = action_size
-#
-#         self._create_layers(state_size, action_size, hidden_layers, 1)
-#         _initialize_weights([self.fc1, self.fc2, self.fc3])
-#
-#     def _create_layers(self, state_size, action_size, hidden_layers, output_size):
-#         self.fc1 = nn.Linear(in_features=state_size, out_features=hidden_layers[0])
-#         self.fc2 = nn.Linear(in_features=hidden_layers[0] + action_size, out_features=hidden_layers[1])
-#         self.fc3 = nn.Linear(in_features=hidden_layers[1], out_features=output_size)
-#
-#     def forward(self, state, action):
-#         x = F.relu(self.fc1(state))
-#         x = F.relu(self.fc2(torch.cat([x, action], dim=1)))
-#         x = F.relu(self.fc3(x))
-#         return x
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 def hidden_init(layer):
@@ -73,7 +14,7 @@ def hidden_init(layer):
 class Actor(nn.Module):
     """Actor (Policy) Model."""
 
-    def __init__(self, state_size, action_size, fc1_units=256, fc2_units=128):
+    def __init__(self, state_size, action_size, seed, fc1_units=300, fc2_units=200):
         """Initialize parameters and build model.
         Params
         ======
@@ -84,6 +25,7 @@ class Actor(nn.Module):
             fc2_units (int): Number of nodes in second hidden layer
         """
         super(Actor, self).__init__()
+        self.seed = torch.manual_seed(seed)
         self.fc1 = nn.Linear(state_size, fc1_units)
         self.fc2 = nn.Linear(fc1_units, fc2_units)
         self.fc3 = nn.Linear(fc2_units, action_size)
@@ -104,7 +46,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     """Critic (Value) Model."""
 
-    def __init__(self, state_size, action_size, fc1_units=256, fc2_units=128):
+    def __init__(self, state_size, action_size, seed, fc1_units=300, fc2_units=200):
         """Initialize parameters and build model.
         Params
         ======
@@ -115,6 +57,7 @@ class Critic(nn.Module):
             fc2_units (int): Number of nodes in the second hidden layer
         """
         super(Critic, self).__init__()
+        self.seed = torch.manual_seed(seed)
         self.fc1 = nn.Linear(state_size, fc1_units)
         self.fc2 = nn.Linear(fc1_units + action_size, fc2_units)
         self.fc3 = nn.Linear(fc2_units, 1)
