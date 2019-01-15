@@ -15,7 +15,6 @@ GAMMA = 0.99
 TAU = 1e-3
 LR_ACTOR = 1e-4
 LR_CRITIC = 1e-4
-WEIGHT_DECAY = 0.0
 
 N_LEARN_UPDATES = 10
 N_TIME_STEPS = 20
@@ -25,14 +24,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class DDPGAgent():
     """Interacts with and learns from the environment."""
-    memory = None
-    actor_local = None
-    actor_target = None
-    actor_optimizer = None
-
-    critic_local = None
-    critic_target = None
-    critic_optimizer = None
 
     def __init__(self, state_size, action_size, random_seed):
         """Initialize an Agent object.
@@ -53,7 +44,7 @@ class DDPGAgent():
 
         self.critic_local = Critic(state_size, action_size, random_seed).to(device)
         self.critic_target = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
+        self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC)
 
         self.noise = OUNoise(action_size, random_seed)
 
