@@ -1,7 +1,6 @@
 [//]: # (Image References)
 
-[learning_scores]: learning_scores.jpg "Learning Scores"
-[learning_scores_list]: learning_scores_list.jpg "Learning Scores List"
+[rewards]: rewards.png "Learning Rewards"
 [algorithm]: algorithm.jpg "DDPG Algorithm"
 [image1]: https://user-images.githubusercontent.com/10624937/43851024-320ba930-9aff-11e8-8493-ee547c6af349.gif "Trained Agent"
 
@@ -20,14 +19,14 @@ The observation space consists of 33 variables corresponding to position, rotati
 
 ## Implementation
 
-The implementation is utilizing DDPG (Deep Deterministic Policy Gradients) with 2 hidden layers (256, 128 nodes) for both actor & critic networks.
+The implementation is utilizing DDPG (Deep Deterministic Policy Gradients) with 2 hidden layers (300, 200 nodes) for both actor & critic networks.
 Code is adapted from Udacity's [ddpg-pendulum](https://github.com/udacity/deep-reinforcement-learning/tree/master/ddpg-pendulum) repository.
 
 Hyperparameters chosen for the implementation are below:
 
 ```python
-SEED = 16                   # random seed for python, numpy & torch
-episodes = 1000             # max episodes to run
+SEED = 0                    # random seed for python, numpy & torch
+episodes = 2000             # max episodes to run
 max_t = 1000                # max steps in episode
 solved_threshold = 30       # finish training when avg. score in 100 episodes crosses this threshold
 
@@ -62,22 +61,46 @@ DDPG is using both value function (Critic network) & policy approximation (Actor
 
 Moreover, in contrast to DQN we can use continuous action space.
 
+Similarly like for DQN we utilize 
+
+**Experience Replay** 
+
+A buffer with experience tuples (s, a, r, s'): (state, action, reward, next_state)
+
+**Q-targets fixing**
+
+We create 2 neural networks (NN): local and target.
+Then fix target NN weights for some learning steps to decouple 
+the local NN from target NN parameters making learning more stable and less likely to diverge or fall into oscillations.
+
+Hence in reality we have to have 4 neural networks:
+- Critic target NN
+- Critic local NN (for execution) 
+- Actor target NN 
+- Actor local NN (for execution)
+
+
 ## Rewards
 
 As shown below agent learned the environment fairly quickly. In around 500 episodes it reached average 13+ reward. 
 
-![Learning Scores Chart][learning_scores]
+![Learning Rewards][rewards]
 
-![Learning Scores List][learning_scores_list]
 
 The weights of the networks are stored in `checkpoint.pth` file using `torch.save(agent.local.state_dict(), 'checkpoint.pth')`
 
 ## Ideas for Future Work
 
-Prioritized Experience Replay
-PER is exactly what it sounds like. Instead of sampling randomly from the experience buffer, as is done in this project, PER assigns an "error" score to each experience based on the difference between the expected reward and the observed reward for that experience. This has not been implemented but could have a significant benefit in reducing the number of episodes required to solve this environment.
+**Prioritized Experience Replay**
 
-Model-based algorithms instead of DDPG
-In contrast with model-free RL algorithms that attempt to predict optimal action-value functions or policy functions, model-based RL algorithms go one level deeper to attempt prediction of state transitions given a current state and taking some action. Because of the simplicity underlying the target dynamics in the Reacher environments, it would make sense to try to identify the time-dependent pattern of the target itself.
+This approach comes from the idea that we want to focus our training on the actions that were "way off" what we did.
+That means the higher the TD error the higher priority. We store in the experience buffer the probability of choosing the experience tuple depending on the TD error. 
+Then we sample the experiences based on this probability.
+There is one caveat that it's required to add small epsilon to the probability (_p_) since setting the tuple's `p = 0` will make it practically disappear and the agent will never see that tuple again.   
 
-This approach would open up the realm of time-series-based supervised-learning techniques including RNNs and LSTMs and be expected to provide a much more efficient learning algorithm.
+**Trust Region Policy Optimization (TRPO) and Truncated Natural Policy Gradient (TNPG)**
+
+In the trust region, we determine the maximum step size that we want to explore for optimization and then we locate the optimal point within this trust region.
+To control the learning speed better, we can be expanded or shrink this trust region in runtime according to the curvature of the surface.
+This technique is used because traditional policy based & gradient optimization model for RL might make a too large step and actually fall down (in terms of rewards) and never recover again.
+ 
