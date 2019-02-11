@@ -7,14 +7,16 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+from HyperParam import HyperParam
 from LinearNet import Actor, Critic
 
 BUFFER_SIZE = int(1e6)
 BATCH_SIZE = 128
 GAMMA = 0.99
-TAU = 1e-3
+TAU = 1e-4
+LR_CRITIC = 1e-3
 LR_ACTOR = 1e-4
-LR_CRITIC = 1e-4
+WEIGHT_DECAY = 0
 
 N_LEARN_UPDATES = 10
 N_TIME_STEPS = 20
@@ -24,8 +26,16 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class DDPGAgent():
     """Interacts with and learns from the environment."""
+    memory = None
+    actor_local = None
+    actor_target = None
+    actor_optimizer = None
 
-    def __init__(self, state_size, action_size, random_seed):
+    critic_local = None
+    critic_target = None
+    critic_optimizer = None
+
+    def __init__(self, state_size, action_size, random_seed, memory, hyper_param=None):
         """Initialize an Agent object.
 
         Params
@@ -34,25 +44,46 @@ class DDPGAgent():
             action_size (int): dimension of each action
             random_seed (int): random seed
         """
+
+        if hyper_param is None:
+            hyper_param = HyperParam()
+            hyper_param.actor_fc1 = 128
+            hyper_param.actor_fc2 = 128
+            hyper_param.critic_fc1 = 128
+            hyper_param.critic_fc2 = 128
+            hyper_param.lr_actor = LR_ACTOR
+            hyper_param.lr_critic = LR_CRITIC
+            hyper_param.tau = TAU
+
+        self.hyper_param = hyper_param
+
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)
 
-        self.actor_local = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_target = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
+        # Actor Network (w/ Target Network)
+        self.actor_local = Actor(state_size, action_size, random_seed, hyper_param.actor_fc1, hyper_param.actor_fc2).to(
+            device)
+        self.actor_target = Actor(state_size, action_size, random_seed, hyper_param.actor_fc1,
+                                  hyper_param.actor_fc2).to(device)
+        self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=hyper_param.lr_actor)
 
+        # Critic Network (w/ Target Network)
         self.critic_local = Critic(state_size, action_size, random_seed).to(device)
         self.critic_target = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC)
+        self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
+        # Initialize and local to target to be the same
+        # self.soft_update(self.critic_local, self.critic_target, tau=1.0)
+        # self.soft_update(self.actor_local, self.actor_target, tau=1.0)
+
+        # Noise process
         self.noise = OUNoise(action_size, random_seed)
+        self.memory = memory  # ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
 
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
-
-    def step(self, time_step, state, action, reward, next_state, done):
+    def step(self, time_step):
         """Save experience in replay memory, and use random sample from buffer to learn."""
-        self.memory.add(state, action, reward, next_state, done)
+        # self.memory.add(state, action, reward, next_state, done)
 
         if time_step % N_TIME_STEPS != 0:
             return
@@ -97,7 +128,7 @@ class DDPGAgent():
         Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
         # Compute critic loss
         Q_expected = self.critic_local(states, actions)
-        critic_loss = F.mse_loss(Q_expected, Q_targets)
+        critic_loss = F.mse_loss(Q_targets, Q_expected)
         # Minimize the loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -164,19 +195,50 @@ class ReplayBuffer:
             batch_size (int): size of each training batch
         """
         self.action_size = action_size
-        self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
+        self.memory = deque(maxlen=buffer_size)
+        self.memory_pos = deque(maxlen=buffer_size)
+        self.memory_neg = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
+        self.pos_count = 0
+        self.neg_count = 0
+
+    # def save(self):
+    #     torch.save(self.memory, 'memory.pth')
+    #     torch.save(self.memory_pos, 'memory_pos.pth')
+    #     torch.save(self.memory_neg, 'memory_neg.pth')
+    #     torch.save(self.neg_count, 'memory_neg_count.pth')
+    #     torch.save(self.pos_count, 'memory_neg_count.pth')
+    #
+    # def load(self):
+    #     self.memory = torch.load('memory.pth')
+    #     self.memory_pos = torch.load('memory_pos.pth')
+    #     self.memory_neg = torch.load('memory_neg.pth')
+    #     self.neg_count = torch.load('memory_neg_count.pth')
+    #     self.pos_count = torch.load('memory_pos_count.pth')
 
     def add(self, state, action, reward, next_state, done):
         """Add a new experience to memory."""
         e = self.experience(state, action, reward, next_state, done)
+
         self.memory.append(e)
+
+        if np.sum(reward) > 0:
+            self.pos_count += 1
+            self.memory_pos.append(e)
+        elif np.sum(reward) < 0:
+            self.neg_count += 1
+            self.memory_neg.append(e)
+        else:
+            self.memory_neg.append(e)
 
     def sample(self):
         """Randomly sample a batch of experiences from memory."""
-        experiences = random.sample(self.memory, k=self.batch_size)
+        sample_count_pos = int(min(self.batch_size / 4, len(self.memory_pos)))
+        sample_count_neg = int(min(self.batch_size - sample_count_pos, len(self.memory_neg)))
+        experiences = random.sample(self.memory_pos, k=sample_count_pos) + random.sample(self.memory_neg, k=sample_count_neg)
+        # experiences = random.sample(self.memory, k=self.batch_size)
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).float().to(device)
